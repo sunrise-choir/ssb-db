@@ -1,0 +1,13 @@
+[package]
+name = "ssb-db"
+version = "0.1.0"
+authors = ["Piet Geursen <pietgeursen@gmail.com>"]
+edition = "2018"
+
+
+[dependencies]
+diesel = { version = "1.4.3", features = ["sqlite", "r2d2"] }
+diesel_migrations = "1.4.0"
+libsqlite3-sys = { version = "0.16.0", features = ["bundled"] }
+snafu = "0.6.0"
+ssb-multiformats = {git = "https://github.com/sunrise-choir/ssb-multiformats"} 
