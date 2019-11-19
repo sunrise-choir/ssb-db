@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["Error",""]],"struct":[["SqliteSsbDb",""]],"type":[["FlumeSequence",""],["Result",""]]});
+initSidebarItems({"enum":[["Error",""]],"struct":[["SqliteSsbDb",""]],"trait":[["SsbDb",""]],"type":[["FlumeSequence",""],["Result",""]]});
