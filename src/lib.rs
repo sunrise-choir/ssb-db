@@ -10,18 +10,16 @@ use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::any_pending_migrations;
 use itertools::Itertools;
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use ssb_multiformats::multihash::Multihash;
 use ssb_multiformats::multikey::Multikey;
 
 mod db;
 mod ssb_message;
 
-use ssb_message::SsbMessage;
-
 use db::{
     find_feed_flume_seqs_newer_than, find_feed_latest_seq, find_message_flume_seq_by_key,
-    get_latest, insert_message, find_or_create_key, find_or_create_author,
+    get_latest, 
     append_item
 };
 
@@ -65,8 +63,8 @@ pub struct SqliteSsbDb {
 embed_migrations!();
 
 impl SqliteSsbDb {
-    pub fn new(database_path: String, offset_log_path: String) -> SqliteSsbDb {
-        let database_url = to_sqlite_uri(&database_path, "rwc");
+    pub fn new<S: AsRef<str>>(database_path: S, offset_log_path: S) -> SqliteSsbDb {
+        let database_url = to_sqlite_uri(database_path.as_ref(), "rwc");
         let connection = SqliteConnection::establish(&database_url)
             .expect(&format!("Error connecting to {}", database_url));
 
@@ -79,10 +77,10 @@ impl SqliteSsbDb {
             embedded_migrations::run(&connection).unwrap();
         }
 
-        let offset_log = match OffsetLog::new(&offset_log_path) {
+        let offset_log = match OffsetLog::new(&offset_log_path.as_ref()) {
             Ok(log) => log,
             Err(_) => {
-                panic!("failed to open offset log at {}", offset_log_path);
+                panic!("failed to open offset log at {}", offset_log_path.as_ref());
             }
         };
         SqliteSsbDb {
@@ -91,7 +89,7 @@ impl SqliteSsbDb {
         }
     }
 
-    fn update_indexes_from_offset_file(&self) -> Result<()> {
+    pub fn update_indexes_from_offset_file(&self) -> Result<()> {
         //We're using Max of flume_seq.
         //When the db is empty, we'll get None.
         //When there is one item in the db, we'll get 0 (it's the first seq number you get)
@@ -129,7 +127,7 @@ impl SqliteSsbDb {
 }
 
 impl SsbDb for SqliteSsbDb {
-    fn append_batch(&mut self, feed_id: &Multikey, messages: &[&[u8]]) -> Result<()> {
+    fn append_batch(&mut self, _: &Multikey, messages: &[&[u8]]) -> Result<()> {
         // First, append the messages to flume
         self.offset_log
             .append_batch(messages)
@@ -174,8 +172,15 @@ fn to_sqlite_uri(path: &str, rw_mode: &str) -> String {
 }
 #[cfg(test)]
 mod tests {
+    use crate::{SsbDb, SqliteSsbDb};
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn it_opens_a_connection_ok() {
+        SqliteSsbDb::new("./test.sqlite3", "/home/piet/.ssb/flume/log.offset");
+    }
+    #[test]
+    fn it_process_eeerything() {
+        let db = SqliteSsbDb::new("./test2.sqlite3", "/home/piet/.ssb/flume/log.offset");
+        let res = db.update_indexes_from_offset_file();
+        assert!(res.is_ok());
     }
 }

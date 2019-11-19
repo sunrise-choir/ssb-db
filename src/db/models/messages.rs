@@ -1,8 +1,6 @@
 use super::keys::*;
 use crate::db::{Error, SqliteConnection};
-use crate::ssb_message::*;
 
-use super::keys::find_or_create_key;
 use crate::db::schema::authors::dsl::{
     author as authors_author, authors as authors_table, id as authors_id,
 };

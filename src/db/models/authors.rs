@@ -1,5 +1,4 @@
 use crate::db::*;
-use diesel::prelude::*;
 
 use crate::db::schema::authors;
 
