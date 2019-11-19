@@ -44,7 +44,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-trait SsbDb {
+pub trait SsbDb {
     fn append_batch(&mut self, feed_id: &Multikey, messages: &[&[u8]]) -> Result<()>;
     fn get_entry_by_key(& self, message_key: &Multihash) -> Result<Vec<u8>>;
     fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<FlumeSequence>;
