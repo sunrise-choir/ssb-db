@@ -4,7 +4,9 @@ extern crate diesel_migrations;
 extern crate diesel;
 
 pub use flumedb::flume_view::Sequence as FlumeSequence;
+
 use flumedb::offset_log::OffsetLog;
+use flumedb::FlumeLog;
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
@@ -31,6 +33,8 @@ pub enum Error {
     FeedNotFound { source: db::Error },
     #[snafu(display("Error, could not batch append to offset file."))]
     OffsetAppendError {},
+    #[snafu(display("Error, could not find entry at expected offset."))]
+    OffsetGetError {},
     #[snafu(display(
         "Error, could not get the latest sequence number from the db. {}",
         source
@@ -42,16 +46,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 trait SsbDb {
     fn append_batch(&mut self, feed_id: &Multikey, messages: &[&[u8]]) -> Result<()>;
-    fn get_entry_by_key<'a>(&self, message_key: &Multihash) -> Result<&'a [u8]>;
+    fn get_entry_by_key(& self, message_key: &Multihash) -> Result<Vec<u8>>;
     fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<FlumeSequence>;
-    fn get_entries_newer_than_sequence<'a>(
-        &'a self,
+    fn get_entries_newer_than_sequence(
+        &self,
         feed_id: &Multikey,
         sequence: i32,
         limit: Option<i64>,
         include_keys: bool,
         include_values: bool,
-    ) -> Result<&'a [&'a [u8]]>;
+    ) -> Result<Vec<Vec<u8>>>;
     fn rebuild_indexes(&mut self) -> Result<()>;
 }
 
@@ -136,11 +140,12 @@ impl SsbDb for SqliteSsbDb {
 
         self.update_indexes_from_offset_file()
     }
-    fn get_entry_by_key<'a>(&self, message_key: &Multihash) -> Result<&'a [u8]> {
+    fn get_entry_by_key<'a>(&'a self, message_key: &Multihash) -> Result<Vec<u8>> {
         let flume_seq =
             find_message_flume_seq_by_key(&self.connection, &message_key.to_legacy_string())
                 .context(MessageNotFound)?;
-        unimplemented!();
+        self.offset_log.get(flume_seq)
+            .map_err(|_|snafu::NoneError).context(OffsetGetError)
     }
     fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<FlumeSequence> {
         find_feed_latest_seq(&self.connection, &feed_id.to_legacy_string()).context(FeedNotFound)
@@ -152,15 +157,21 @@ impl SsbDb for SqliteSsbDb {
         limit: Option<i64>,
         include_keys: bool,
         include_values: bool,
-    ) -> Result<&'a [&'a [u8]]> {
-        find_feed_flume_seqs_newer_than(
+    ) -> Result<Vec<Vec<u8>>> {
+        let seqs = find_feed_flume_seqs_newer_than(
             &self.connection,
             &feed_id.to_legacy_string(),
             sequence,
             limit,
         )
         .context(FeedNotFound)?;
-        unimplemented!();
+
+        seqs.iter()
+            .map(|seq| {
+                self.offset_log.get(*seq)
+                    .map_err(|_|snafu::NoneError).context(OffsetGetError)
+            })
+            .collect()
     }
     fn rebuild_indexes(&mut self) -> Result<()> {
         unimplemented!();
