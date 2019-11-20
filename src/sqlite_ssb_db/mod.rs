@@ -10,6 +10,7 @@ use ssb_legacy_msg_data;
 use ssb_legacy_msg_data::value::Value;
 use ssb_multiformats::multihash::Multihash;
 use ssb_multiformats::multikey::Multikey;
+use std::cell::RefCell;
 
 use crate::db;
 use crate::error::*;
@@ -22,8 +23,8 @@ use db::{
 };
 
 pub struct SqliteSsbDb {
-    connection: SqliteConnection,
-    offset_log: OffsetLog<u32>,
+    connection: RefCell<SqliteConnection>,
+    offset_log: RefCell<OffsetLog<u32>>,
     db_path: String,
 }
 
@@ -40,8 +41,8 @@ impl SqliteSsbDb {
             }
         };
         SqliteSsbDb {
-            connection,
-            offset_log,
+            connection: RefCell::new(connection),
+            offset_log: RefCell::new(offset_log),
             db_path: database_path.as_ref().to_owned(),
         }
     }
@@ -51,7 +52,11 @@ impl SqliteSsbDb {
         //When the db is empty, we'll get None.
         //When there is one item in the db, we'll get 0 (it's the first seq number you get)
         //When there's more than one you'll get some >0 number
-        let max_seq = get_latest(&self.connection)
+        
+        let connection = self.connection.borrow_mut();
+        let offset_log = self.offset_log.borrow();
+        
+        let max_seq = get_latest(&connection)
             .context(UnableToGetLatestSequence)?
             .map(|val| val as u64);
 
@@ -62,17 +67,17 @@ impl SqliteSsbDb {
 
         let starting_offset = max_seq.unwrap_or(0);
 
-        self.offset_log
+        offset_log
             .iter_at_offset(starting_offset)
             .skip(num_to_skip)
             .chunks(10000)
             .into_iter()
             .map(|chunk| {
-                self.connection
+                connection
                     .transaction::<_, db::Error, _>(|| {
                         chunk
                             .map(|log_entry| {
-                                append_item(&self.connection, log_entry.offset, &log_entry.data)?;
+                                append_item(&connection, log_entry.offset, &log_entry.data)?;
 
                                 Ok(())
                             })
@@ -86,9 +91,10 @@ impl SqliteSsbDb {
 }
 
 impl SsbDb for SqliteSsbDb {
-    fn append_batch<T: AsRef<[u8]>>(&mut self, _: &Multikey, messages: &[T]) -> Result<()> {
+    fn append_batch<T: AsRef<[u8]>>(&self, _: &Multikey, messages: &[T]) -> Result<()> {
         // First, append the messages to flume
         self.offset_log
+            .borrow_mut()
             .append_batch(messages)
             .map_err(|_| Error::OffsetAppendError {})?;
 
@@ -96,14 +102,15 @@ impl SsbDb for SqliteSsbDb {
     }
     fn get_entry_by_key<'a>(&'a self, message_key: &Multihash) -> Result<Vec<u8>> {
         let flume_seq =
-            find_message_flume_seq_by_key(&self.connection, &message_key.to_legacy_string())
+            find_message_flume_seq_by_key(&self.connection.borrow(), &message_key.to_legacy_string())
                 .context(MessageNotFound)?;
         self.offset_log
+            .borrow()
             .get(flume_seq)
             .map_err(|_| Error::OffsetGetError {})
     }
     fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<Option<i32>> {
-        find_feed_latest_seq(&self.connection, &feed_id.to_legacy_string()).context(FeedNotFound)
+        find_feed_latest_seq(&self.connection.borrow(), &feed_id.to_legacy_string()).context(FeedNotFound)
     }
     fn get_entries_newer_than_sequence<'a>(
         &'a self,
@@ -114,7 +121,7 @@ impl SsbDb for SqliteSsbDb {
         include_values: bool,
     ) -> Result<Vec<Vec<u8>>> {
         let seqs = find_feed_flume_seqs_newer_than(
-            &self.connection,
+            &self.connection.borrow(),
             &feed_id.to_legacy_string(),
             sequence,
             limit,
@@ -127,6 +134,7 @@ impl SsbDb for SqliteSsbDb {
                 .iter()
                 .flat_map(|seq| {
                     self.offset_log
+                        .borrow()
                         .get(*seq)
                         .map_err(|_| Error::OffsetGetError {})
                 })
@@ -137,6 +145,7 @@ impl SsbDb for SqliteSsbDb {
                 seqs.iter()
                     .flat_map(|seq| {
                         self.offset_log
+                            .borrow()
                             .get(*seq)
                             .map_err(|_| Error::OffsetGetError {})
                     })
@@ -163,15 +172,16 @@ impl SsbDb for SqliteSsbDb {
                 .iter()
                 .map(|seq| {
                     self.offset_log
+                        .borrow()
                         .get(*seq)
                         .map_err(|_| Error::OffsetGetError {})
                 })
                 .collect(),
         }
     }
-    fn rebuild_indexes(&mut self) -> Result<()> {
+    fn rebuild_indexes(&self) -> Result<()> {
         std::fs::remove_file(&self.db_path).unwrap();
-        self.connection = setup_connection(&self.db_path);
+        self.connection.replace(setup_connection(&self.db_path));
         self.update_indexes_from_offset_file()
     }
 }

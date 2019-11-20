@@ -55,7 +55,7 @@ use ssb_multiformats::multikey::Multikey;
 pub trait SsbDb 
 {
     /// Append a batch of valid ssb messages authored by the `feed_id`.
-    fn append_batch<T: AsRef<[u8]>>(&mut self, feed_id: &Multikey, messages: &[T]) -> Result<()>;
+    fn append_batch<T: AsRef<[u8]>>(&self, feed_id: &Multikey, messages: &[T]) -> Result<()>;
     /// Get an entry by its ssb message key.
     fn get_entry_by_key(&self, message_key: &Multihash) -> Result<Vec<u8>>;
     /// Get the latest sequence number for the given feed.
@@ -78,7 +78,7 @@ pub trait SsbDb
     ) -> Result<Vec<Vec<u8>>>;
     /// You can rebuild the indexes in sqlite db (but not the offset file) if they become
     /// corrupted.
-    fn rebuild_indexes(&mut self) -> Result<()>;
+    fn rebuild_indexes(&self) -> Result<()>;
 }
 
 
@@ -229,7 +229,7 @@ mod tests {
 
         let db_path = "/tmp/test_append_batch.sqlite3";
         let offset_path = "/tmp/test_append_batch.offset";
-        let mut db = SqliteSsbDb::new(db_path, offset_path);
+        let db = SqliteSsbDb::new(db_path, offset_path);
 
         let res = db.append_batch(&author, &entries.as_slice());
         assert!(res.is_ok());
@@ -244,7 +244,7 @@ mod tests {
         let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
 
         let db_path = "/tmp/test_rebuild_indexes.sqlite3";
-        let mut db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
         db.update_indexes_from_offset_file().unwrap();
 
         let res = db.rebuild_indexes();
