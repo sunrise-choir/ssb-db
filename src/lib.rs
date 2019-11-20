@@ -232,7 +232,7 @@ fn setup_connection(database_path: &str) -> SqliteConnection {
     }
 
     if let Ok(true) = any_pending_migrations(&connection) {
-        std::fs::remove_file(&database_url).unwrap();
+        std::fs::remove_file(&database_path).unwrap();
         embedded_migrations::run(&connection).unwrap();
     }
 
@@ -243,15 +243,63 @@ fn to_sqlite_uri(path: &str, rw_mode: &str) -> String {
 }
 #[cfg(test)]
 mod tests {
-    use crate::SqliteSsbDb;
+    use crate::{SqliteSsbDb, SsbDb};
+    use ssb_multiformats::multihash::Multihash;
     #[test]
     fn it_opens_a_connection_ok() {
-        SqliteSsbDb::new("./test.sqlite3", "/home/piet/.ssb/flume/log.offset");
+        let db_path = "./test_opens.sqlite3";
+        SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        std::fs::remove_file(&db_path).unwrap();
     }
     #[test]
     fn it_process_eeerything() {
-        let db = SqliteSsbDb::new("./test2.sqlite3", "/home/piet/.ssb/flume/log.offset");
+        let db_path = "./test_process_everything.sqlite3";
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
         let res = db.update_indexes_from_offset_file();
         assert!(res.is_ok());
+        std::fs::remove_file(&db_path).unwrap();
+    }
+    #[test]
+    fn get_entry_by_key_works(){
+        let key_str = "%/v5mCnV/kmnVtnF3zXtD4tbzoEQo4kRq/0d/bgxP1WI=.sha256";
+        let key = Multihash::from_legacy(key_str.as_bytes()).unwrap().0;
+
+        let db_path = "./test_get_entry_by_key.sqlite3";
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        db.update_indexes_from_offset_file().unwrap();
+
+        let res = db.get_entry_by_key(&key);
+        let entry = res.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&entry).unwrap();
+
+
+        let actual_key_str: &str = value["key"].as_str().unwrap();
+
+        assert_eq!(actual_key_str, key_str)
+    }
+    #[test]
+    fn get_feed_latest_sequence_works(){
+
+    }
+    #[test]
+    fn get_entries_kv_newer_than_sequence_works(){
+
+    }
+    #[test]
+    fn get_entries_k_newer_than_sequence_works(){
+
+    }
+    #[test]
+    fn get_entries_v_newer_than_sequence_works(){
+        //check message is valid
+
+    }
+    #[test]
+    fn get_entries_no_kv_newer_than_sequence_works(){
+
+    }
+    #[test]
+    fn rebuild_indexes_works(){
+
     }
 }
