@@ -17,11 +17,10 @@ use flumedb::flume_view::Sequence as FlumeSequence;
 
 #[derive(Queryable, Insertable, Associations, Identifiable, Debug, Default)]
 #[table_name = "messages"]
-#[primary_key(id)]
+#[primary_key(flume_seq)]
 #[belongs_to(Key)]
 pub struct Message {
-    pub id: Option<i32>,
-    pub flume_seq: i64,
+    pub flume_seq: Option<i64>,
     pub seq: i32,
     pub key_id: i32,
     pub author_id: i32,
@@ -42,8 +41,7 @@ pub fn insert_message(
     author_id: i32,
 ) -> Result<usize, Error> {
     let message = Message {
-        id: None,
-        flume_seq,
+        flume_seq: Some(flume_seq),
         key_id: message_key_id,
         seq,
         author_id: author_id,

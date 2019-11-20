@@ -33,7 +33,13 @@ pub fn append_item(
     let message_key_id = find_or_create_key(&connection, &message.key)?;
     let author_id = find_or_create_author(&connection, &message.value.author)?;
 
-    insert_message(connection, message.value.sequence as i32, seq as i64, message_key_id, author_id)?;
+    insert_message(
+        connection,
+        message.value.sequence as i32,
+        seq as i64,
+        message_key_id,
+        author_id,
+    )?;
 
     Ok(())
 }
