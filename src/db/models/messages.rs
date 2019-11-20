@@ -8,7 +8,7 @@ use crate::db::schema::keys::dsl::{id as keys_id, key as keys_key, keys as keys_
 use crate::db::schema::messages;
 use crate::db::schema::messages::dsl::{
     flume_seq as messages_flume_seq, key_id as messages_key_id, messages as messages_table,
-    seq as messages_seq,
+    seq as messages_seq, author_id as messages_author_id
 };
 use diesel::dsl::max;
 use diesel::insert_into;
@@ -67,15 +67,13 @@ pub fn find_message_flume_seq_by_key(
 pub fn find_feed_latest_seq(
     connection: &SqliteConnection,
     author: &str,
-) -> Result<FlumeSequence, Error> {
-    let flume_seq = authors_table
-        .inner_join(messages_table.on(messages_key_id.nullable().eq(authors_id)))
-        .select(messages_flume_seq)
-        .order(messages_flume_seq.desc())
+) -> Result<Option<i32>, Error> {
+    authors_table
+        .inner_join(messages_table.on(messages_author_id.nullable().eq(authors_id)))
+        .select(max(messages_seq))
         .filter(authors_author.eq(author.clone()))
-        .first::<i64>(connection)? as FlumeSequence;
+        .first(connection)
 
-    Ok(flume_seq)
 }
 pub fn find_feed_flume_seqs_newer_than(
     connection: &SqliteConnection,
@@ -84,7 +82,7 @@ pub fn find_feed_flume_seqs_newer_than(
     limit: Option<i64>,
 ) -> Result<Vec<FlumeSequence>, Error> {
     let flume_seqs = authors_table
-        .inner_join(messages_table.on(messages_key_id.nullable().eq(authors_id)))
+        .inner_join(messages_table.on(messages_author_id.nullable().eq(authors_id)))
         .select(messages_flume_seq)
         .filter(messages_seq.gt(sequence))
         .filter(authors_author.eq(author.clone()))

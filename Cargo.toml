@@ -6,7 +6,7 @@ edition = "2018"
 
 
 [dependencies]
-diesel = { version = "1.4.3", features = ["sqlite", "r2d2"] }
+diesel = { version = "1.4.3", features = ["sqlite"] }
 diesel_migrations = "1.4.0"
 flumedb = { git = "https://github.com/sunrise-choir/flumedb-rs", branch = "go_offset_log" }
 itertools = "0.8.0"

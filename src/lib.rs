@@ -30,6 +30,8 @@ use db::{
 
 #[derive(Debug, Snafu)]
 pub enum Error {
+    #[snafu(display("`include_keys` and `include_values` were both false. Pick one or both."))]
+    IncludeKeysIncludeValuesBothFalse{},
     #[snafu(display("Could not encode legacy value as vec"))]
     EncodingValueAsVecError {},
     #[snafu(display("Error, tried to parse contents of db as legacy Value. This should never fail. The db may be corrupt. Rebuild the indexes"))]
@@ -53,10 +55,11 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub trait SsbDb {
-    fn append_batch(&mut self, feed_id: &Multikey, messages: &[&[u8]]) -> Result<()>;
+pub trait SsbDb 
+{
+    fn append_batch<T: AsRef<[u8]>>(&mut self, feed_id: &Multikey, messages: &[T]) -> Result<()>;
     fn get_entry_by_key(&self, message_key: &Multihash) -> Result<Vec<u8>>;
-    fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<FlumeSequence>;
+    fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<Option<i32>>;
     fn get_entries_newer_than_sequence(
         &self,
         feed_id: &Multikey,
@@ -133,7 +136,7 @@ impl SqliteSsbDb {
 }
 
 impl SsbDb for SqliteSsbDb {
-    fn append_batch(&mut self, _: &Multikey, messages: &[&[u8]]) -> Result<()> {
+    fn append_batch<T: AsRef<[u8]>>(&mut self, _: &Multikey, messages: &[T]) -> Result<()> {
         // First, append the messages to flume
         self.offset_log
             .append_batch(messages)
@@ -149,7 +152,7 @@ impl SsbDb for SqliteSsbDb {
             .get(flume_seq)
             .map_err(|_| Error::OffsetGetError {})
     }
-    fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<FlumeSequence> {
+    fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<Option<i32>> {
         find_feed_latest_seq(&self.connection, &feed_id.to_legacy_string()).context(FeedNotFound)
     }
     fn get_entries_newer_than_sequence<'a>(
@@ -169,7 +172,7 @@ impl SsbDb for SqliteSsbDb {
         .context(FeedNotFound)?;
 
         match (include_keys, include_values) {
-            (false, false) => Ok(vec![]),
+            (false, false) => Err(Error::IncludeKeysIncludeValuesBothFalse{}),
             (true, false) => seqs
                 .iter()
                 .flat_map(|seq| {
@@ -243,28 +246,18 @@ fn to_sqlite_uri(path: &str, rw_mode: &str) -> String {
 }
 #[cfg(test)]
 mod tests {
-    use crate::{SqliteSsbDb, SsbDb};
+    use crate::{SqliteSsbDb, SsbDb, SsbMessage};
+    use crate::ssb_message::SsbValue;
     use ssb_multiformats::multihash::Multihash;
-    #[test]
-    fn it_opens_a_connection_ok() {
-        let db_path = "./test_opens.sqlite3";
-        SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
-        std::fs::remove_file(&db_path).unwrap();
-    }
-    #[test]
-    fn it_process_eeerything() {
-        let db_path = "./test_process_everything.sqlite3";
-        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
-        let res = db.update_indexes_from_offset_file();
-        assert!(res.is_ok());
-        std::fs::remove_file(&db_path).unwrap();
-    }
+    use ssb_multiformats::multikey::Multikey;
+    use flumedb::offset_log::OffsetLog;
+
     #[test]
     fn get_entry_by_key_works(){
         let key_str = "%/v5mCnV/kmnVtnF3zXtD4tbzoEQo4kRq/0d/bgxP1WI=.sha256";
         let key = Multihash::from_legacy(key_str.as_bytes()).unwrap().0;
 
-        let db_path = "./test_get_entry_by_key.sqlite3";
+        let db_path = "/tmp/test_get_entry_by_key.sqlite3";
         let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
         db.update_indexes_from_offset_file().unwrap();
 
@@ -275,31 +268,156 @@ mod tests {
 
         let actual_key_str: &str = value["key"].as_str().unwrap();
 
-        assert_eq!(actual_key_str, key_str)
+        assert_eq!(actual_key_str, key_str);
+        std::fs::remove_file(&db_path).unwrap();
     }
     #[test]
     fn get_feed_latest_sequence_works(){
+        let expected_seq = 6006;
+        let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
+        let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
 
+        let db_path = "/tmp/test_get_latest_seq.sqlite3";
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        db.update_indexes_from_offset_file().unwrap();
+
+        let res = db.get_feed_latest_sequence(&author);
+        let seq = res.unwrap();
+
+        assert_eq!(seq.unwrap(), expected_seq);
+        std::fs::remove_file(&db_path).unwrap();
     }
     #[test]
     fn get_entries_kv_newer_than_sequence_works(){
+        let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
+        let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
 
+        let db_path = "/tmp/test_get_entries_kv.sqlite3";
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        db.update_indexes_from_offset_file().unwrap();
+
+        let res = db.get_entries_newer_than_sequence(&author, 6000, None, true, true).unwrap()
+            .iter()
+            .flat_map(|entry |serde_json::from_slice::<SsbMessage>(&entry))
+            .collect::<Vec<_>>();
+
+        assert_eq!(res.len(), 6);
+
+        std::fs::remove_file(&db_path).unwrap();
+    }
+    #[test]
+    fn get_entries_newer_than_sequence_works_with_limit(){
+        let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
+        let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
+
+        let db_path = "/tmp/test_get_entries_kv_limit.sqlite3";
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        db.update_indexes_from_offset_file().unwrap();
+
+        let res = db.get_entries_newer_than_sequence(&author, 6000, Some(2), true, true).unwrap()
+            .iter()
+            .flat_map(|entry |serde_json::from_slice::<SsbMessage>(&entry))
+            .collect::<Vec<_>>();
+
+        assert_eq!(res.len(), 2);
+
+        std::fs::remove_file(&db_path).unwrap();
     }
     #[test]
     fn get_entries_k_newer_than_sequence_works(){
+        let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
+        let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
 
+        let db_path = "/tmp/test_get_entries_k.sqlite3";
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        db.update_indexes_from_offset_file().unwrap();
+
+        let res = db.get_entries_newer_than_sequence(&author, 6000, None, true, false).unwrap()
+            .iter()
+            .flat_map(|entry | Multihash::from_legacy(entry))
+            .map(|(key,_)| key)
+            .collect::<Vec<_>>();
+
+        assert_eq!(res.len(), 6);
+
+        std::fs::remove_file(&db_path).unwrap();
     }
     #[test]
     fn get_entries_v_newer_than_sequence_works(){
         //check message is valid
+        let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
+        let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
 
+        let db_path = "/tmp/test_get_entries_v.sqlite3";
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        db.update_indexes_from_offset_file().unwrap();
+
+        let res = db.get_entries_newer_than_sequence(&author, 6000, None, false, true).unwrap()
+            .iter()
+            .flat_map(|entry | serde_json::from_slice::<SsbValue>(entry))
+            .collect::<Vec<_>>();
+
+        assert_eq!(res.len(), 6);
+
+        std::fs::remove_file(&db_path).unwrap();
     }
     #[test]
-    fn get_entries_no_kv_newer_than_sequence_works(){
+    fn get_entries_no_kv_newer_than_sequence_errors(){
+        //check message is valid
+        let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
+        let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
 
+        let db_path = "/tmp/test_get_entries_no_kv.sqlite3";
+        let db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        db.update_indexes_from_offset_file().unwrap();
+
+        let res = db.get_entries_newer_than_sequence(&author, 6000, None, false, false);
+
+        assert!(res.is_err());
+
+        std::fs::remove_file(&db_path).unwrap();
+    }
+    #[test]
+    fn append_batch_works(){
+        let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
+        let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
+        let offset_log_path = "./test_vecs/piet.offset";
+        let log = OffsetLog::<u32>::new(&offset_log_path).unwrap();
+
+        let entries = log
+            .iter()
+            .map(|entry| entry.data)
+            .collect::<Vec<_>>();
+
+        let db_path = "/tmp/test_append_batch.sqlite3";
+        let offset_path = "/tmp/test_append_batch.offset";
+        let mut db = SqliteSsbDb::new(db_path, offset_path);
+
+        let res = db.append_batch(&author, &entries.as_slice());
+        assert!(res.is_ok());
+        std::fs::remove_file(&db_path).unwrap();
+        std::fs::remove_file(&offset_path).unwrap();
     }
     #[test]
     fn rebuild_indexes_works(){
+        let expected_seq = 6006;
 
+        let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
+        let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
+
+        let db_path = "/tmp/test_rebuild_indexes.sqlite3";
+        let mut db = SqliteSsbDb::new(db_path, "./test_vecs/piet.offset");
+        db.update_indexes_from_offset_file().unwrap();
+
+        let res = db.rebuild_indexes();
+
+        assert!(res.is_ok());
+
+        let res = db.get_feed_latest_sequence(&author);
+        let seq = res.unwrap();
+
+        assert_eq!(seq.unwrap(), expected_seq);
+
+        std::fs::remove_file(&db_path).unwrap();
     }
 }
