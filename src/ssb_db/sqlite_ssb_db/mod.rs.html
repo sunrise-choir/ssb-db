@@ -194,6 +194,16 @@
 <span id="194">194</span>
 <span id="195">195</span>
 <span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">flumedb</span>::<span class="ident">offset_log</span>::<span class="ident">OffsetLog</span>;
 <span class="kw">use</span> <span class="ident">flumedb</span>::<span class="ident">FlumeLog</span>;
@@ -207,6 +217,7 @@
 <span class="kw">use</span> <span class="ident">ssb_legacy_msg_data</span>::<span class="ident">value</span>::<span class="ident">Value</span>;
 <span class="kw">use</span> <span class="ident">ssb_multiformats</span>::<span class="ident">multihash</span>::<span class="ident">Multihash</span>;
 <span class="kw">use</span> <span class="ident">ssb_multiformats</span>::<span class="ident">multikey</span>::<span class="ident">Multikey</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">db</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">error</span>::<span class="kw-2">*</span>;
@@ -219,8 +230,8 @@
 };
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SqliteSsbDb</span> {
-    <span class="ident">connection</span>: <span class="ident">SqliteConnection</span>,
-    <span class="ident">offset_log</span>: <span class="ident">OffsetLog</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
+    <span class="ident">connection</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">SqliteConnection</span><span class="op">&gt;</span>,
+    <span class="ident">offset_log</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">OffsetLog</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">db_path</span>: <span class="ident">String</span>,
 }
 
@@ -237,8 +248,8 @@
             }
         };
         <span class="ident">SqliteSsbDb</span> {
-            <span class="ident">connection</span>,
-            <span class="ident">offset_log</span>,
+            <span class="ident">connection</span>: <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">connection</span>),
+            <span class="ident">offset_log</span>: <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">offset_log</span>),
             <span class="ident">db_path</span>: <span class="ident">database_path</span>.<span class="ident">as_ref</span>().<span class="ident">to_owned</span>(),
         }
     }
@@ -248,7 +259,11 @@
         <span class="comment">//When the db is empty, we&#39;ll get None.</span>
         <span class="comment">//When there is one item in the db, we&#39;ll get 0 (it&#39;s the first seq number you get)</span>
         <span class="comment">//When there&#39;s more than one you&#39;ll get some &gt;0 number</span>
-        <span class="kw">let</span> <span class="ident">max_seq</span> <span class="op">=</span> <span class="ident">get_latest</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">connection</span>)
+        
+        <span class="kw">let</span> <span class="ident">connection</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">connection</span>.<span class="ident">borrow_mut</span>();
+        <span class="kw">let</span> <span class="ident">offset_log</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">offset_log</span>.<span class="ident">borrow</span>();
+        
+        <span class="kw">let</span> <span class="ident">max_seq</span> <span class="op">=</span> <span class="ident">get_latest</span>(<span class="kw-2">&amp;</span><span class="ident">connection</span>)
             .<span class="ident">context</span>(<span class="ident">UnableToGetLatestSequence</span>)<span class="question-mark">?</span>
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">val</span><span class="op">|</span> <span class="ident">val</span> <span class="kw">as</span> <span class="ident">u64</span>);
 
@@ -259,17 +274,17 @@
 
         <span class="kw">let</span> <span class="ident">starting_offset</span> <span class="op">=</span> <span class="ident">max_seq</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>);
 
-        <span class="self">self</span>.<span class="ident">offset_log</span>
+        <span class="ident">offset_log</span>
             .<span class="ident">iter_at_offset</span>(<span class="ident">starting_offset</span>)
             .<span class="ident">skip</span>(<span class="ident">num_to_skip</span>)
             .<span class="ident">chunks</span>(<span class="number">10000</span>)
             .<span class="ident">into_iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">chunk</span><span class="op">|</span> {
-                <span class="self">self</span>.<span class="ident">connection</span>
+                <span class="ident">connection</span>
                     .<span class="ident">transaction</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">db</span>::<span class="ident">Error</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="op">|</span><span class="op">|</span> {
                         <span class="ident">chunk</span>
                             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">log_entry</span><span class="op">|</span> {
-                                <span class="ident">append_item</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">connection</span>, <span class="ident">log_entry</span>.<span class="ident">offset</span>, <span class="kw-2">&amp;</span><span class="ident">log_entry</span>.<span class="ident">data</span>)<span class="question-mark">?</span>;
+                                <span class="ident">append_item</span>(<span class="kw-2">&amp;</span><span class="ident">connection</span>, <span class="ident">log_entry</span>.<span class="ident">offset</span>, <span class="kw-2">&amp;</span><span class="ident">log_entry</span>.<span class="ident">data</span>)<span class="question-mark">?</span>;
 
                                 <span class="prelude-val">Ok</span>(())
                             })
@@ -283,9 +298,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SsbDb</span> <span class="kw">for</span> <span class="ident">SqliteSsbDb</span> {
-    <span class="kw">fn</span> <span class="ident">append_batch</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">Multikey</span>, <span class="ident">messages</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">append_batch</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">Multikey</span>, <span class="ident">messages</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="comment">// First, append the messages to flume</span>
         <span class="self">self</span>.<span class="ident">offset_log</span>
+            .<span class="ident">borrow_mut</span>()
             .<span class="ident">append_batch</span>(<span class="ident">messages</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Error</span>::<span class="ident">OffsetAppendError</span> {})<span class="question-mark">?</span>;
 
@@ -293,14 +309,15 @@
     }
     <span class="kw">fn</span> <span class="ident">get_entry_by_key</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">message_key</span>: <span class="kw-2">&amp;</span><span class="ident">Multihash</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">flume_seq</span> <span class="op">=</span>
-            <span class="ident">find_message_flume_seq_by_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">connection</span>, <span class="kw-2">&amp;</span><span class="ident">message_key</span>.<span class="ident">to_legacy_string</span>())
+            <span class="ident">find_message_flume_seq_by_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">connection</span>.<span class="ident">borrow</span>(), <span class="kw-2">&amp;</span><span class="ident">message_key</span>.<span class="ident">to_legacy_string</span>())
                 .<span class="ident">context</span>(<span class="ident">MessageNotFound</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">offset_log</span>
+            .<span class="ident">borrow</span>()
             .<span class="ident">get</span>(<span class="ident">flume_seq</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Error</span>::<span class="ident">OffsetGetError</span> {})
     }
     <span class="kw">fn</span> <span class="ident">get_feed_latest_sequence</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">feed_id</span>: <span class="kw-2">&amp;</span><span class="ident">Multikey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="ident">find_feed_latest_seq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">connection</span>, <span class="kw-2">&amp;</span><span class="ident">feed_id</span>.<span class="ident">to_legacy_string</span>()).<span class="ident">context</span>(<span class="ident">FeedNotFound</span>)
+        <span class="ident">find_feed_latest_seq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">connection</span>.<span class="ident">borrow</span>(), <span class="kw-2">&amp;</span><span class="ident">feed_id</span>.<span class="ident">to_legacy_string</span>()).<span class="ident">context</span>(<span class="ident">FeedNotFound</span>)
     }
     <span class="kw">fn</span> <span class="ident">get_entries_newer_than_sequence</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
@@ -311,7 +328,7 @@
         <span class="ident">include_values</span>: <span class="ident">bool</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">seqs</span> <span class="op">=</span> <span class="ident">find_feed_flume_seqs_newer_than</span>(
-            <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">connection</span>,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">connection</span>.<span class="ident">borrow</span>(),
             <span class="kw-2">&amp;</span><span class="ident">feed_id</span>.<span class="ident">to_legacy_string</span>(),
             <span class="ident">sequence</span>,
             <span class="ident">limit</span>,
@@ -324,6 +341,7 @@
                 .<span class="ident">iter</span>()
                 .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">seq</span><span class="op">|</span> {
                     <span class="self">self</span>.<span class="ident">offset_log</span>
+                        .<span class="ident">borrow</span>()
                         .<span class="ident">get</span>(<span class="kw-2">*</span><span class="ident">seq</span>)
                         .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Error</span>::<span class="ident">OffsetGetError</span> {})
                 })
@@ -334,6 +352,7 @@
                 <span class="ident">seqs</span>.<span class="ident">iter</span>()
                     .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">seq</span><span class="op">|</span> {
                         <span class="self">self</span>.<span class="ident">offset_log</span>
+                            .<span class="ident">borrow</span>()
                             .<span class="ident">get</span>(<span class="kw-2">*</span><span class="ident">seq</span>)
                             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Error</span>::<span class="ident">OffsetGetError</span> {})
                     })
@@ -360,15 +379,16 @@
                 .<span class="ident">iter</span>()
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">seq</span><span class="op">|</span> {
                     <span class="self">self</span>.<span class="ident">offset_log</span>
+                        .<span class="ident">borrow</span>()
                         .<span class="ident">get</span>(<span class="kw-2">*</span><span class="ident">seq</span>)
                         .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Error</span>::<span class="ident">OffsetGetError</span> {})
                 })
                 .<span class="ident">collect</span>(),
         }
     }
-    <span class="kw">fn</span> <span class="ident">rebuild_indexes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">rebuild_indexes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">remove_file</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">db_path</span>).<span class="ident">unwrap</span>();
-        <span class="self">self</span>.<span class="ident">connection</span> <span class="op">=</span> <span class="ident">setup_connection</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">db_path</span>);
+        <span class="self">self</span>.<span class="ident">connection</span>.<span class="ident">replace</span>(<span class="ident">setup_connection</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">db_path</span>));
         <span class="self">self</span>.<span class="ident">update_indexes_from_offset_file</span>()
     }
 }
