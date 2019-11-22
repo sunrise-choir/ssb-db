@@ -7,8 +7,8 @@ use crate::db::schema::authors::dsl::{
 use crate::db::schema::keys::dsl::{id as keys_id, key as keys_key, keys as keys_table};
 use crate::db::schema::messages;
 use crate::db::schema::messages::dsl::{
-    flume_seq as messages_flume_seq, key_id as messages_key_id, messages as messages_table,
-    seq as messages_seq, author_id as messages_author_id
+    author_id as messages_author_id, flume_seq as messages_flume_seq, key_id as messages_key_id,
+    messages as messages_table, seq as messages_seq,
 };
 use diesel::dsl::max;
 use diesel::insert_into;
@@ -64,6 +64,20 @@ pub fn find_message_flume_seq_by_key(
 
     Ok(flume_seq)
 }
+
+pub fn find_message_flume_seq_by_author_and_sequence(
+    connection: &SqliteConnection,
+    author: &str,
+    sequence: i32,
+) -> Result<Option<i64>, Error> {
+    authors_table
+        .inner_join(messages_table.on(messages_author_id.nullable().eq(authors_id)))
+        .select(messages_flume_seq)
+        .filter(messages_seq.eq(sequence))
+        .filter(authors_author.eq(author))
+        .first(connection)
+        .optional()
+}
 pub fn find_feed_latest_seq(
     connection: &SqliteConnection,
     author: &str,
@@ -73,7 +87,6 @@ pub fn find_feed_latest_seq(
         .select(max(messages_seq))
         .filter(authors_author.eq(author.clone()))
         .first(connection)
-
 }
 pub fn find_feed_flume_seqs_newer_than(
     connection: &SqliteConnection,

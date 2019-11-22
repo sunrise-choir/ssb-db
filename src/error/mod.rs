@@ -1,11 +1,11 @@
-use snafu::{Snafu};
 use crate::db;
+use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
-#[snafu(visibility = "pub(crate)")] 
+#[snafu(visibility = "pub(crate)")]
 pub enum Error {
     #[snafu(display("`include_keys` and `include_values` were both false. Pick one or both."))]
-    IncludeKeysIncludeValuesBothFalse{},
+    IncludeKeysIncludeValuesBothFalse {},
     #[snafu(display("Could not encode legacy value as vec"))]
     EncodingValueAsVecError {},
     #[snafu(display("Error, tried to parse contents of db as legacy Value. This should never fail. The db may be corrupt. Rebuild the indexes"))]

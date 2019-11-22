@@ -10,8 +10,9 @@ pub use models::{authors, keys, messages};
 pub use authors::find_or_create_author;
 pub use keys::find_or_create_key;
 pub use messages::{
-    find_feed_flume_seqs_newer_than, find_feed_latest_seq, find_message_flume_seq_by_key,
-    get_latest, insert_message,
+    find_feed_flume_seqs_newer_than, find_feed_latest_seq,
+    find_message_flume_seq_by_author_and_sequence, find_message_flume_seq_by_key, get_latest,
+    insert_message,
 };
 
 use crate::ssb_message::SsbMessage;

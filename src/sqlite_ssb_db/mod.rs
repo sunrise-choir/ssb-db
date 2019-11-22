@@ -14,12 +14,12 @@ use std::cell::RefCell;
 
 use crate::db;
 use crate::error::*;
-use crate::SsbDb;
 use crate::ssb_message::SsbMessage;
+use crate::SsbDb;
 
 use db::{
     append_item, find_feed_flume_seqs_newer_than, find_feed_latest_seq,
-    find_message_flume_seq_by_key, get_latest,
+    find_message_flume_seq_by_author_and_sequence, find_message_flume_seq_by_key, get_latest,
 };
 
 pub struct SqliteSsbDb {
@@ -52,10 +52,10 @@ impl SqliteSsbDb {
         //When the db is empty, we'll get None.
         //When there is one item in the db, we'll get 0 (it's the first seq number you get)
         //When there's more than one you'll get some >0 number
-        
+
         let connection = self.connection.borrow_mut();
         let offset_log = self.offset_log.borrow();
-        
+
         let max_seq = get_latest(&connection)
             .context(UnableToGetLatestSequence)?
             .map(|val| val as u64);
@@ -101,16 +101,37 @@ impl SsbDb for SqliteSsbDb {
         self.update_indexes_from_offset_file()
     }
     fn get_entry_by_key<'a>(&'a self, message_key: &Multihash) -> Result<Vec<u8>> {
-        let flume_seq =
-            find_message_flume_seq_by_key(&self.connection.borrow(), &message_key.to_legacy_string())
-                .context(MessageNotFound)?;
+        let flume_seq = find_message_flume_seq_by_key(
+            &self.connection.borrow(),
+            &message_key.to_legacy_string(),
+        )
+        .context(MessageNotFound)?;
         self.offset_log
             .borrow()
             .get(flume_seq)
             .map_err(|_| Error::OffsetGetError {})
     }
+
+    fn get_entry_by_seq(&self, feed_id: &Multikey, sequence: i32) -> Result<Option<Vec<u8>>> {
+        let flume_seq = find_message_flume_seq_by_author_and_sequence(
+            &self.connection.borrow(),
+            &feed_id.to_legacy_string(),
+            sequence,
+        )
+        .context(MessageNotFound)?;
+
+        flume_seq
+            .map(|flume_seq| {
+                self.offset_log
+                    .borrow()
+                    .get(flume_seq as u64)
+                    .map_err(|_| Error::OffsetGetError {})
+            })
+            .transpose()
+    }
     fn get_feed_latest_sequence(&self, feed_id: &Multikey) -> Result<Option<i32>> {
-        find_feed_latest_seq(&self.connection.borrow(), &feed_id.to_legacy_string()).context(FeedNotFound)
+        find_feed_latest_seq(&self.connection.borrow(), &feed_id.to_legacy_string())
+            .context(FeedNotFound)
     }
     fn get_entries_newer_than_sequence<'a>(
         &'a self,
@@ -129,7 +150,7 @@ impl SsbDb for SqliteSsbDb {
         .context(FeedNotFound)?;
 
         match (include_keys, include_values) {
-            (false, false) => Err(Error::IncludeKeysIncludeValuesBothFalse{}),
+            (false, false) => Err(Error::IncludeKeysIncludeValuesBothFalse {}),
             (true, false) => seqs
                 .iter()
                 .flat_map(|seq| {
