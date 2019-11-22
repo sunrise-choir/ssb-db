@@ -29,14 +29,14 @@
 <span id="29">29</span>
 <span id="30">30</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">snafu</span>::{<span class="ident">Snafu</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">db</span>;
+<span class="kw">use</span> <span class="ident">snafu</span>::<span class="ident">Snafu</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Snafu</span>)]</span>
-<span class="attribute">#[<span class="ident">snafu</span>(<span class="ident">visibility</span> <span class="op">=</span> <span class="string">&quot;pub(crate)&quot;</span>)]</span> 
+<span class="attribute">#[<span class="ident">snafu</span>(<span class="ident">visibility</span> <span class="op">=</span> <span class="string">&quot;pub(crate)&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Error</span> {
     <span class="attribute">#[<span class="ident">snafu</span>(<span class="ident">display</span>(<span class="string">&quot;`include_keys` and `include_values` were both false. Pick one or both.&quot;</span>))]</span>
-    <span class="ident">IncludeKeysIncludeValuesBothFalse</span>{},
+    <span class="ident">IncludeKeysIncludeValuesBothFalse</span> {},
     <span class="attribute">#[<span class="ident">snafu</span>(<span class="ident">display</span>(<span class="string">&quot;Could not encode legacy value as vec&quot;</span>))]</span>
     <span class="ident">EncodingValueAsVecError</span> {},
     <span class="attribute">#[<span class="ident">snafu</span>(<span class="ident">display</span>(<span class="string">&quot;Error, tried to parse contents of db as legacy Value. This should never fail. The db may be corrupt. Rebuild the indexes&quot;</span>))]</span>

@@ -43,6 +43,7 @@
 <span id="43">43</span>
 <span id="44">44</span>
 <span id="45">45</span>
+<span id="46">46</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">diesel</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">diesel</span>::<span class="ident">result</span>::<span class="ident">Error</span>;
@@ -56,8 +57,9 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">authors</span>::<span class="ident">find_or_create_author</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">keys</span>::<span class="ident">find_or_create_key</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">messages</span>::{
-    <span class="ident">find_feed_flume_seqs_newer_than</span>, <span class="ident">find_feed_latest_seq</span>, <span class="ident">find_message_flume_seq_by_key</span>,
-    <span class="ident">get_latest</span>, <span class="ident">insert_message</span>,
+    <span class="ident">find_feed_flume_seqs_newer_than</span>, <span class="ident">find_feed_latest_seq</span>,
+    <span class="ident">find_message_flume_seq_by_author_and_sequence</span>, <span class="ident">find_message_flume_seq_by_key</span>, <span class="ident">get_latest</span>,
+    <span class="ident">insert_message</span>,
 };
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">ssb_message</span>::<span class="ident">SsbMessage</span>;
