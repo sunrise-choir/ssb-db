@@ -26,6 +26,7 @@ pub fn append_item(
 
     // If there are deleted records with all bytes zerod then we should just skip this message.
     if let Err(_) = result {
+        println!("We couldn't deserialize a message, skipping it because it's probably zerod bytes from blocking someone.");
         return Ok(());
     }
 

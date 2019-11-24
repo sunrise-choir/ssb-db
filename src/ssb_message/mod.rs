@@ -10,5 +10,4 @@ pub struct SsbValue {
 pub struct SsbMessage {
     pub key: String,
     pub value: SsbValue,
-    pub timestamp: f64,
 }
