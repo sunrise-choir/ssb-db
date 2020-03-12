@@ -5,4 +5,4 @@
 
 ## Docs
 
-[Rustdocs](https://sunrise-choir.github.io/ssb_db/ssb_db/index.html)
+[Rustdocs](https://sunrise-choir.github.io/ssb-db/ssb_db/index.html)
