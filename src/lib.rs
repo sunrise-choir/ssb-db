@@ -49,8 +49,8 @@ pub use error::Error;
 pub use sqlite_ssb_db::SqliteSsbDb;
 
 use error::Result;
-use ssb_multiformats::multihash::Multihash;
-use ssb_multiformats::multikey::Multikey;
+pub use ssb_multiformats::multihash::Multihash;
+pub use ssb_multiformats::multikey::Multikey;
 
 pub trait SsbDb {
     /// Append a batch of valid ssb messages authored by the `feed_id`.
