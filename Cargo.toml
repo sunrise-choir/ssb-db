@@ -1,8 +1,13 @@
 [package]
 name = "ssb-db"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Piet Geursen <pietgeursen@gmail.com>"]
 edition = "2018"
+description = "sqlite-backed ssb feed database"
+repository = "https://github.com/sunrise-choir/ssb-db"
+documentation = "https://docs.rs/ssb-db/"
+readme = "README.md"
+keywords = ["ssb", "scuttlebutt"]
 
 
 [dependencies]
