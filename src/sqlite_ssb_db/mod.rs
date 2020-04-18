@@ -6,8 +6,8 @@ use diesel::sqlite::SqliteConnection;
 use diesel_migrations::any_pending_migrations;
 use itertools::Itertools;
 use snafu::{OptionExt, ResultExt};
-use ssb_legacy_msg_data;
-use ssb_legacy_msg_data::value::Value;
+use ssb_json_msg_data;
+use ssb_json_msg_data::value::Value;
 use ssb_multiformats::multihash::Multihash;
 use ssb_multiformats::multikey::Multikey;
 use std::cell::RefCell;
@@ -176,12 +176,12 @@ impl SsbDb for SqliteSsbDb {
                         //ordering is still intact.
                         //If we don't do that then we would return a message that would fail
                         //verification
-                        ssb_legacy_msg_data::json::from_slice(&msg)
+                        ssb_json_msg_data::json::from_slice(&msg)
                     })
                     .map(|legacy_value| {
                         if let Value::Object(legacy_val) = legacy_value {
                             let val = legacy_val.get("value").context(ErrorParsingAsLegacyValue)?;
-                            ssb_legacy_msg_data::json::to_vec(&val, false)
+                            ssb_json_msg_data::json::to_vec(&val, false)
                                 .map_err(|_| Error::EncodingValueAsVecError {})
                         } else {
                             Err(Error::ErrorParsingAsLegacyValue {})
