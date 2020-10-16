@@ -54,7 +54,7 @@ use ssb_multiformats::multikey::Multikey;
 
 pub trait SsbDb {
     /// Append a batch of valid ssb messages authored by the `feed_id`.
-    fn append_batch<T: AsRef<[u8]>>(&self, feed_id: &Multikey, messages: &[T]) -> Result<()>;
+    fn append_batch<T: 'static + AsRef<[u8]>>(&self, feed_id: &Multikey, messages: &[T]) -> Result<()>;
     /// Get an entry by its ssb message key.
     fn get_entry_by_key(&self, message_key: &Multihash) -> Result<Vec<u8>>;
     /// Get an entry by its sequence key + author.

@@ -1,5 +1,5 @@
 use flumedb::offset_log::OffsetLog;
-use flumedb::FlumeLog;
+use flumedb::{FlumeLog, IterAtOffset};
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
