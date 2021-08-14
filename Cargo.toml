@@ -3,7 +3,7 @@ name = "ssb-db"
 version = "0.1.6"
 authors = ["Piet Geursen <pietgeursen@gmail.com>"]
 edition = "2018"
-license = "AGPL-3.0"
+license = "LGPL-3.0"
 description = "The most basic sqlite backed db that you need to do replication on ssb"
 
 
