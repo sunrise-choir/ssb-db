@@ -44,7 +44,7 @@ pub fn insert_message(
         flume_seq: Some(flume_seq),
         key_id: message_key_id,
         seq,
-        author_id: author_id,
+        author_id,
     };
 
     insert_into(messages_table)

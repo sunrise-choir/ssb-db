@@ -108,6 +108,7 @@ mod tests {
         assert_eq!(actual_key_str, key_str);
         std::fs::remove_file(&db_path).unwrap();
     }
+
     #[test]
     fn get_feed_latest_sequence_works() {
         let expected_seq = 6006;
@@ -224,6 +225,7 @@ mod tests {
     }
     #[test]
     fn append_batch_works() {
+        let expected_seq = 6006;
         let author_str = "@U5GvOKP/YUza9k53DSXxT0mk3PIrnyAmessvNfZl5E0=.ed25519";
         let author = Multikey::from_legacy(author_str.as_bytes()).unwrap().0;
         let offset_log_path = "./test_vecs/piet.offset";
@@ -237,6 +239,11 @@ mod tests {
 
         let res = db.append_batch(&author, &entries.as_slice());
         assert!(res.is_ok());
+
+        let res = db.get_feed_latest_sequence(&author);
+        let seq = res.unwrap();
+        assert_eq!(seq.unwrap(), expected_seq);
+
         std::fs::remove_file(&db_path).unwrap();
         std::fs::remove_file(&offset_path).unwrap();
     }

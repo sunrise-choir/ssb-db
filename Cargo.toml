@@ -10,7 +10,7 @@ description = "The most basic sqlite backed db that you need to do replication o
 [dependencies]
 diesel = { version = "1.4.3", features = ["sqlite"] }
 diesel_migrations = "1.4.0"
-flumedb = "0.1.4"
+flumedb = "0.1.6"
 itertools = "0.8.0"
 libsqlite3-sys = { version = "0.16.0", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
